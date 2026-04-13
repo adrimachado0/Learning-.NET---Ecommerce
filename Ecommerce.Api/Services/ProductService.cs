@@ -1,54 +1,38 @@
-using Ecommerce.Api.Data;
 using Ecommerce.Api.Dtos;
 using Ecommerce.Api.Models;
-using Microsoft.EntityFrameworkCore;
+using Ecommerce.Api.Repositories.Interfaces;
 
 namespace Ecommerce.Api.Services;
 
 public class ProductService(
-    EcommerceContext dbContext,
-    ICategoryService categoryService
+    IProductRepository productRepository,
+    ICategoryRepository categoryRepository
 ) : IProductService
 {
     public async Task<List<ProductSummaryDto>> GetPaginatedProductsAsync(ProductFilterQueryDto filters)
     {
-        var query = dbContext.Products.AsQueryable();
+        var products = await productRepository.GetAllAsync(
+            filters.Page,
+            filters.Limit,
+            filters.Categoria,
+            filters.Term,
+            filters.Min,
+            filters.Max
+        );
 
-        if(!string.IsNullOrEmpty(filters.Categoria))
-            query = query.Where(p => EF.Functions.ILike(p.Category.Name, filters.Categoria));
-
-        if(!string.IsNullOrEmpty(filters.Term))
-            query = query.Where(p => EF.Functions.ILike(p.Name, $"%{filters.Term}%"));
-
-        if(filters.Min.HasValue)
-            query = query.Where(p => p.Price >= filters.Min.Value);
-  
-        if(filters.Max.HasValue)
-            query = query.Where(p => p.Price <= filters.Max.Value);
-
-        var products = await query
-            .OrderBy(p => p.Id)
-            .Skip((filters.Page - 1) * filters.Limit)            
-            .Take(filters.Limit)
-            .Select(p => new ProductSummaryDto(
-                p.Id,
-                p.Name,
-                p.Price,
-                p.ImageUrl,
-                p.CreatedAt,
-                p.Category.Name
-            ))
-            .AsNoTracking()
-            .ToListAsync();
-
-        return products;
+        return products.Select(p => new ProductSummaryDto(
+            p.Id,
+            p.Name,
+            p.Price,
+            p.ImageUrl,
+            p.CreatedAt,
+            p.Category.Name
+        )).ToList();
     }
 
     public async Task<ProductDetailsDto?> GetProductByIdAsync(int id)
     {
-        var product = await dbContext.Products
-            .Include(p => p.Category)
-            .FirstOrDefaultAsync(p => p.Id == id);
+        var product = await productRepository.GetByIdAsync(id);
         if(product is null) return null;
         return new ProductDetailsDto(
             product.Id,
@@ -63,7 +47,7 @@ public class ProductService(
 
     public async Task<ProductDetailsDto> CreateProductAsync(CreateProductDto newProduct)
     {
-        var categoryFound = await categoryService.GetCategoryByIdAsync(newProduct.CategoryId);
+        var categoryFound = await categoryRepository.GetByIdAsync(newProduct.CategoryId);
         if(categoryFound is null) 
             throw new KeyNotFoundException($"La categoría {newProduct.CategoryId} no existe.");
 
@@ -76,8 +60,8 @@ public class ProductService(
             CategoryId = newProduct.CategoryId
         };
 
-        dbContext.Add(product);
-        await dbContext.SaveChangesAsync();
+        productRepository.Add(product);
+        await productRepository.SaveChangesAsync();
 
         return new ProductDetailsDto(
             product.Id,
@@ -92,14 +76,14 @@ public class ProductService(
 
     public async Task<ProductDetailsDto?> UpdateProductAsync(int id, UpdateProductDto updatedProduct)
     {
-        var categoryFound = await categoryService.GetCategoryByIdAsync(updatedProduct.CategoryId);
+        var product = await productRepository.GetByIdAsync(id);
+        if( product is null )
+            return null;
+        
+        var categoryFound = await categoryRepository.GetByIdAsync(updatedProduct.CategoryId);
         if(categoryFound is null) 
             throw new KeyNotFoundException($"La categoría {updatedProduct.CategoryId} no existe.");
 
-        var product = await dbContext.Products.FindAsync(id);
-
-        if( product is null )
-            return null;
 
         product.Name = updatedProduct.Name;
         product.Description = updatedProduct.Description;
@@ -107,7 +91,9 @@ public class ProductService(
         product.ImageUrl = updatedProduct.ImageUrl;
         product.CategoryId = updatedProduct.CategoryId;
 
-        await dbContext.SaveChangesAsync();
+        productRepository.Update(product);
+        await productRepository.SaveChangesAsync();
+
         return new ProductDetailsDto(
             product.Id,
             product.Name,
@@ -121,10 +107,7 @@ public class ProductService(
 
     public async Task<bool> DeleteProductAsync(int id)
     {
-        var rowsAffected = await dbContext.Products
-            .Where(product => product.Id == id)
-            .ExecuteDeleteAsync();
-
+        var rowsAffected = await productRepository.DeleteAsync(id);
         return rowsAffected > 0;
     }
 }
