@@ -9,5 +9,5 @@ public record ProductDetailsDto(
     decimal Price,
     string? ImageUrl,
     DateOnly CreatedAt,
-    Category Category
+    CategoryDto Category
 );

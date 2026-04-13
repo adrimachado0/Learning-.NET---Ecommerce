@@ -43,7 +43,7 @@ public class ProductRepository(EcommerceContext dbContext) : IProductRepository
 
     public async Task<Product?> GetByIdAsync(int id)
     {
-        return await dbContext.Products.FindAsync(id);
+        return await dbContext.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id);
     }
 
     public void Add(Product product)

@@ -41,7 +41,10 @@ public class ProductService(
             product.Price,
             product.ImageUrl,
             product.CreatedAt,
-            product.Category
+            new CategoryDto(
+                product.Category.Id,
+                product.Category.Name
+            )
         );
     }
 
@@ -70,7 +73,10 @@ public class ProductService(
             product.Price,
             product.ImageUrl,
             product.CreatedAt,
-            product.Category
+            new CategoryDto(
+                product.Category.Id,
+                product.Category.Name
+            )
         );
     }
 
@@ -93,7 +99,7 @@ public class ProductService(
 
         productRepository.Update(product);
         await productRepository.SaveChangesAsync();
-
+    
         return new ProductDetailsDto(
             product.Id,
             product.Name,
@@ -101,7 +107,10 @@ public class ProductService(
             product.Price,
             product.ImageUrl,
             product.CreatedAt,
-            product.Category
+            new CategoryDto(
+                product.Category.Id,
+                product.Category.Name
+            )
         );
     }
 
